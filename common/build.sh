@@ -7,17 +7,11 @@ BOARD_CONFIG=$TOP_DIR/device/rockchip/.BoardConfig.mk
 source $BOARD_CONFIG
 source $TOP_DIR/device/rockchip/common/Version.mk
 
-if [ ! -n "$1" ];then
-	echo "build all and save all as default"
-	BUILD_TARGET=allsave
-else
-	BUILD_TARGET="$1"
-	NEW_BOARD_CONFIG=$TOP_DIR/device/rockchip/$RK_TARGET_PRODUCT/$1
-fi
-
-usage()
+function usage()
 {
-	echo "====USAGE: build.sh modules===="
+	echo "Usage: build.sh [OPTIONS]"
+	echo "Available options:"
+	echo "BoardConfig*.mk    -switch to specified board config"
 	echo "uboot              -build uboot"
 	echo "kernel             -build kernel"
 	echo "modules            -build kernel modules"
@@ -25,8 +19,7 @@ usage()
 	echo "buildroot          -build buildroot rootfs"
 	echo "ramboot            -build ramboot image"
 	echo "multi-npu_boot     -build boot image for multi-npu board"
-	echo "yocto              -build yocto rootfs, currently build ros as default"
-	echo "ros                -build ros rootfs"
+	echo "yocto              -build yocto rootfs"
 	echo "debian             -build debian rootfs"
 	echo "pcba               -build pcba"
 	echo "recovery           -build recovery"
@@ -36,11 +29,12 @@ usage()
 	echo "updateimg          -pack update image"
 	echo "otapackage         -pack ab update otapackage image"
 	echo "save               -save images, patches, commands used to debug"
-	echo "default            -build all modules"
+	echo "allsave            -build all & firmware & updateimg & save"
+	echo ""
+	echo "Default option is 'allsave'."
 }
 
 function build_uboot(){
-	# build uboot
 	echo "============Start build uboot============"
 	echo "TARGET_UBOOT_CONFIG=$RK_UBOOT_DEFCONFIG"
 	echo "========================================="
@@ -57,7 +51,6 @@ function build_uboot(){
 }
 
 function build_kernel(){
-	# build kernel
 	echo "============Start build kernel============"
 	echo "TARGET_ARCH          =$RK_ARCH"
 	echo "TARGET_KERNEL_CONFIG =$RK_KERNEL_DEFCONFIG"
@@ -87,7 +80,6 @@ function build_modules(){
 }
 
 function build_buildroot(){
-	# build buildroot
 	echo "==========Start build buildroot=========="
 	echo "TARGET_BUILDROOT_CONFIG=$RK_CFG_BUILDROOT"
 	echo "========================================="
@@ -101,10 +93,9 @@ function build_buildroot(){
 }
 
 function build_ramboot(){
-	# build ramboot image
-        echo "=========Start build ramboot========="
-        echo "TARGET_RAMBOOT_CONFIG=$RK_CFG_RAMBOOT"
-        echo "====================================="
+	echo "=========Start build ramboot========="
+	echo "TARGET_RAMBOOT_CONFIG=$RK_CFG_RAMBOOT"
+	echo "====================================="
 	/usr/bin/time -f "you take %E to build ramboot" $COMMON_DIR/mk-ramdisk.sh ramboot.img $RK_CFG_RAMBOOT
 	if [ $? -eq 0 ]; then
 		echo "====Build ramboot ok!===="
@@ -119,9 +110,9 @@ function build_multi-npu_boot(){
 		echo "=========Please set 'RK_MULTINPU_BOOT=y' in BoardConfig.mk========="
 		exit 1
 	fi
-        echo "=========Start build multi-npu boot========="
-        echo "TARGET_RAMBOOT_CONFIG=$RK_CFG_RAMBOOT"
-        echo "====================================="
+	echo "=========Start build multi-npu boot========="
+	echo "TARGET_RAMBOOT_CONFIG=$RK_CFG_RAMBOOT"
+	echo "====================================="
 	/usr/bin/time -f "you take %E to build multi-npu boot" $COMMON_DIR/mk-multi-npu_boot.sh
 	if [ $? -eq 0 ]; then
 		echo "====Build multi-npu boot ok!===="
@@ -131,35 +122,73 @@ function build_multi-npu_boot(){
 	fi
 }
 
-function build_rootfs(){
-	build_buildroot
-}
-
-function build_ros(){
-	build_buildroot
-}
-
 function build_yocto(){
-	echo "we don't support yocto at this time"
+	if [ -z "$RK_YOCTO_MACHINE" ]; then
+		echo "This board doesn't support yocto!"
+		exit 1
+	fi
+
+	echo "=========Start build ramboot========="
+	echo "TARGET_MACHINE=$RK_YOCTO_MACHINE"
+	echo "====================================="
+
+	cd yocto
+	ln -sf $RK_YOCTO_MACHINE.conf build/conf/local.conf
+	source oe-init-build-env
+	bitbake core-image-minimal
+	cd ..
+
+	if [ $? -eq 0 ]; then
+		echo "====Build yocto ok!===="
+	else
+		echo "====Build yocto failed!===="
+		exit 1
+	fi
 }
 
 function build_debian(){
-        # build debian
-        echo "===========Start build debian==========="
+	echo "===========Start build debian==========="
 	echo "TARGET_ARCH=$RK_ARCH"
-        echo "RK_DISTRO_DEFCONFIG=$RK_DISTRO_DEFCONFIG"
+	echo "RK_DISTRO_DEFCONFIG=$RK_DISTRO_DEFCONFIG"
 	echo "========================================"
-	/usr/bin/time -f "you take %E to build debian" $TOP_DIR/distro/make.sh $RK_DISTRO_DEFCONFIG $RK_ARCH
-        if [ $? -eq 0 ]; then
-                echo "====Build debian ok!===="
-        else
-                echo "====Build debian failed!===="
-                exit 1
-        fi
+	/usr/bin/time -f "you take %E to build debian" $TOP_DIR/distro/make.sh $RK_DISTRO_DEFCONFIG
+	if [ $? -eq 0 ]; then
+		echo "====Build debian ok!===="
+	else
+		echo "====Build debian failed!===="
+		exit 1
+	fi
+}
+
+function build_rootfs(){
+	rm -f $RK_ROOTFS_IMG
+
+	case "$1" in
+		yocto)
+			build_yocto
+			ROOTFS_IMG=yocto/build/tmp/deploy/images/$RK_YOCTO_MACHINE/rootfs.img
+			;;
+		debian)
+			build_debian
+			ROOTFS_IMG=rootfs/linaro-rootfs.img
+			;;
+		*)
+			build_buildroot
+			ROOTFS_IMG=buildroot/output/$RK_CFG_BUILDROOT/images/rootfs.$RK_ROOTFS_TYPE
+			;;
+	esac
+
+	[ -z "$ROOTFS_IMG" ] && return
+
+	if [ ! -f "$ROOTFS_IMG" ]; then
+		echo "$ROOTFS_IMG not generated?"
+	else
+		mkdir -p ${RK_ROOTFS_IMG%/*}
+		ln -rsf $TOP_DIR/$ROOTFS_IMG $RK_ROOTFS_IMG
+	fi
 }
 
 function build_recovery(){
-	# build recovery
 	echo "==========Start build recovery=========="
 	echo "TARGET_RECOVERY_CONFIG=$RK_CFG_RECOVERY"
 	echo "========================================"
@@ -173,7 +202,6 @@ function build_recovery(){
 }
 
 function build_pcba(){
-	# build pcba
 	echo "==========Start build pcba=========="
 	echo "TARGET_PCBA_CONFIG=$RK_CFG_PCBA"
 	echo "===================================="
@@ -200,7 +228,7 @@ function build_all(){
 	echo "============================================"
 	build_uboot
 	build_kernel
-	build_rootfs
+	build_rootfs ${RK_ROOTFS_SYSTEM:-buildroot}
 	build_recovery
 	build_ramboot
 }
@@ -209,65 +237,64 @@ function clean_all(){
 	echo "clean uboot, kernel, rootfs, recovery"
 	cd $TOP_DIR/u-boot/ && make distclean && cd -
 	cd $TOP_DIR/kernel && make distclean && cd -
-	rm -rf buildroot/out
+	rm -rf buildroot/output
 }
 
 function build_firmware(){
-	# mkfirmware.sh to genarate image
 	./mkfirmware.sh $BOARD_CONFIG
 	if [ $? -eq 0 ]; then
-	    echo "Make image ok!"
+		echo "Make image ok!"
 	else
-	    echo "Make image failed!"
-	    exit 1
+		echo "Make image failed!"
+		exit 1
 	fi
 }
 
 function build_updateimg(){
 	IMAGE_PATH=$TOP_DIR/rockdev
 	PACK_TOOL_DIR=$TOP_DIR/tools/linux/Linux_Pack_Firmware
-    if [ "$RK_LINUX_AB_ENABLE"x = "true"x ];then
-        echo "Make Linux a/b update.img."
-	    build_ota_ab_updateimg
-        source_package_file_name=`ls -lh $PACK_TOOL_DIR/rockdev/package-file | awk -F ' ' '{print $NF}'`
-        cd $PACK_TOOL_DIR/rockdev && ln -fs "$source_package_file_name"-ab package-file && ./mkupdate.sh && cd -
-        mv $PACK_TOOL_DIR/rockdev/update.img $IMAGE_PATH/update_ab.img
-        cd $PACK_TOOL_DIR/rockdev && ln -fs $source_package_file_name package-file && cd -
-        if [ $? -eq 0 ]; then
-            echo "Make Linux a/b update image ok!"
-        else
-            echo "Make Linux a/b update image failed!"
-            exit 1
-        fi
+	if [ "$RK_LINUX_AB_ENABLE"x = "true"x ];then
+		echo "Make Linux a/b update.img."
+		build_otapackage
+		source_package_file_name=`ls -lh $PACK_TOOL_DIR/rockdev/package-file | awk -F ' ' '{print $NF}'`
+		cd $PACK_TOOL_DIR/rockdev && ln -fs "$source_package_file_name"-ab package-file && ./mkupdate.sh && cd -
+		mv $PACK_TOOL_DIR/rockdev/update.img $IMAGE_PATH/update_ab.img
+		cd $PACK_TOOL_DIR/rockdev && ln -fs $source_package_file_name package-file && cd -
+		if [ $? -eq 0 ]; then
+			echo "Make Linux a/b update image ok!"
+		else
+			echo "Make Linux a/b update image failed!"
+			exit 1
+		fi
 
-    else
-        echo "Make update.img"
-        cd $PACK_TOOL_DIR/rockdev && ./mkupdate.sh && cd -
-        mv $PACK_TOOL_DIR/rockdev/update.img $IMAGE_PATH
-        if [ $? -eq 0 ]; then
-            echo "Make update image ok!"
-        else
-            echo "Make update image failed!"
-            exit 1
-        fi
-    fi
+	else
+		echo "Make update.img"
+		cd $PACK_TOOL_DIR/rockdev && ./mkupdate.sh && cd -
+		mv $PACK_TOOL_DIR/rockdev/update.img $IMAGE_PATH
+		if [ $? -eq 0 ]; then
+			echo "Make update image ok!"
+		else
+			echo "Make update image failed!"
+			exit 1
+		fi
+	fi
 }
 
-function build_ota_ab_updateimg(){
-    IMAGE_PATH=$TOP_DIR/rockdev
-    PACK_TOOL_DIR=$TOP_DIR/tools/linux/Linux_Pack_Firmware
+function build_otapackage(){
+	IMAGE_PATH=$TOP_DIR/rockdev
+	PACK_TOOL_DIR=$TOP_DIR/tools/linux/Linux_Pack_Firmware
 
-    echo "Make ota ab update.img"
-    source_package_file_name=`ls -lh $PACK_TOOL_DIR/rockdev/package-file | awk -F ' ' '{print $NF}'`
-    cd $PACK_TOOL_DIR/rockdev && ln -fs "$source_package_file_name"-ota package-file && ./mkupdate.sh && cd -
-    mv $PACK_TOOL_DIR/rockdev/update.img $IMAGE_PATH/update_ota.img
-    cd $PACK_TOOL_DIR/rockdev && ln -fs $source_package_file_name package-file && cd -
-    if [ $? -eq 0 ]; then
-        echo "Make update ota ab image ok!"
-    else
-        echo "Make update ota ab image failed!"
-        exit 1
-    fi
+	echo "Make ota ab update.img"
+	source_package_file_name=`ls -lh $PACK_TOOL_DIR/rockdev/package-file | awk -F ' ' '{print $NF}'`
+	cd $PACK_TOOL_DIR/rockdev && ln -fs "$source_package_file_name"-ota package-file && ./mkupdate.sh && cd -
+	mv $PACK_TOOL_DIR/rockdev/update.img $IMAGE_PATH/update_ota.img
+	cd $PACK_TOOL_DIR/rockdev && ln -fs $source_package_file_name package-file && cd -
+	if [ $? -eq 0 ]; then
+		echo "Make update ota ab image ok!"
+	else
+		echo "Make update ota ab image failed!"
+		exit 1
+	fi
 }
 
 function build_save(){
@@ -297,82 +324,44 @@ function build_save(){
 
 }
 
-function build_all_save(){
+function build_allsave(){
 	build_all
 	build_firmware
 	build_updateimg
 	build_save
 }
+
 #=========================
-# build target
+# build targets
 #=========================
-if [ $BUILD_TARGET == uboot ];then
-    build_uboot
-    exit 0
-elif [ $BUILD_TARGET == kernel ];then
-    build_kernel
-    exit 0
-elif [ $BUILD_TARGET == modules ];then
-    build_modules
-    exit 0
-elif [ $BUILD_TARGET == rootfs ];then
-    build_rootfs
-    exit 0
-elif [ $BUILD_TARGET == buildroot ];then
-    build_buildroot
-    exit 0
-elif [ $BUILD_TARGET == recovery ];then
-    build_kernel
-    build_recovery
-    exit 0
-elif [ $BUILD_TARGET == ramboot ];then
-    build_ramboot
-    exit 0
-elif [ $BUILD_TARGET == multi-npu_boot ];then
-    build_multi-npu_boot
-    exit 0
-elif [ $BUILD_TARGET == pcba ];then
-    build_pcba
-    exit 0
-elif [ $BUILD_TARGET == yocto ];then
-    build_yocto
-    exit 0
-elif [ $BUILD_TARGET == ros ];then
-    build_ros
-    exit 0
-elif [ $BUILD_TARGET == debian ];then
-    build_debian
-    exit 0
-elif [ $BUILD_TARGET == updateimg ];then
-    build_updateimg
-    exit 0
-elif [ $BUILD_TARGET == otapackage ];then
-    build_ota_ab_updateimg
-    exit 0
-elif [ $BUILD_TARGET == all ];then
-    build_all
-    exit 0
-elif [ $BUILD_TARGET == firmware ];then
-    build_firmware
-    exit 0
-elif [ $BUILD_TARGET == save ];then
-    build_save
-    exit 0
-elif [ $BUILD_TARGET == cleanall ];then
-    clean_all
-    exit 0
-elif [ $BUILD_TARGET == --help ] || [ $BUILD_TARGET == help ] || [ $BUILD_TARGET == -h ];then
-    usage
-    exit 0
-elif [ $BUILD_TARGET == allsave ];then
-    build_all_save
-    exit 0
-elif [ -f $NEW_BOARD_CONFIG ];then
-    rm -f $BOARD_CONFIG
-    ln -s $NEW_BOARD_CONFIG $BOARD_CONFIG
-else
-    echo "Can't found build config, please check again"
-    usage
-    exit 1
+
+if echo $@|grep -wqE "help|-h"; then
+	usage
+	exit 0
 fi
 
+OPTIONS="$@"
+for option in ${OPTIONS:-allsave}; do
+	echo "processing option: $option"
+	case $option in
+		BoardConfig*.mk)
+			CONF=$TOP_DIR/device/rockchip/$RK_TARGET_PRODUCT/$option
+			echo "switching to board: $CONF"
+			if [ ! -f $CONF ]; then
+				echo "not exist!"
+				exit 1
+			fi
+
+			ln -sf $CONF $BOARD_CONFIG
+			;;
+		buildroot|debian|yocto)
+			build_rootfs $option
+			;;
+		recovery)
+			build_kernel
+			;&
+		*)
+			eval build_$option || usage
+			;;
+	esac
+done

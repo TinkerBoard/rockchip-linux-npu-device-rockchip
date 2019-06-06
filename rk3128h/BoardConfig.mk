@@ -1,32 +1,31 @@
 #!/bin/bash
 
 # Target arch
-export RK_ARCH=arm64
+export RK_ARCH=arm
 # Uboot defconfig
-export RK_UBOOT_DEFCONFIG=evb-px30
+export RK_UBOOT_DEFCONFIG=rk3128x
 # Kernel defconfig
-export RK_KERNEL_DEFCONFIG=px30_linux_defconfig
+export RK_KERNEL_DEFCONFIG=rockchip_linux_defconfig
 # Kernel dts
-export RK_KERNEL_DTS=px30-evb-ddr3-v10-linux
+export RK_KERNEL_DTS=rk3128h-evb-linux
 # boot image type
-export RK_BOOT_IMG=boot.img
+export RK_BOOT_IMG=zboot.img
 # kernel image path
-export RK_KERNEL_IMG=kernel/arch/arm64/boot/Image
-export RK_KERNEL_ZIMG=kernel/arch/arm64/boot/Image.lz4
+export RK_KERNEL_IMG=kernel/arch/arm/boot/zImage
 # parameter for GPT table
 export RK_PARAMETER=parameter-buildroot.txt
 # Buildroot config
-export RK_CFG_BUILDROOT=rockchip_px30_32
+export RK_CFG_BUILDROOT=rockchip_rk3128h
 # Recovery config
-export RK_CFG_RECOVERY=rockchip_px30_recovery
+export RK_CFG_RECOVERY=rockchip_rk3128h_recovery
 # ramboot config
 export RK_CFG_RAMBOOT=
 # Pcba config
-export RK_CFG_PCBA=rockchip_px30_pcba
+export RK_CFG_PCBA=rockchip_rk3128h_pcba
 # Build jobs
 export RK_JOBS=12
 # target chip
-export RK_TARGET_PRODUCT=px30
+export RK_TARGET_PRODUCT=rk3128h
 # Set rootfs type, including ext2 ext4 squashfs
 export RK_ROOTFS_TYPE=ext4
 # rootfs image path
