@@ -13,7 +13,7 @@ export RK_BOOT_IMG=boot.img
 # kernel image path
 export RK_KERNEL_IMG=kernel/arch/arm64/boot/Image
 # parameter for GPT table
-export RK_PARAMETER=parameter-buildroot.txt
+export RK_PARAMETER=parameter.txt
 # Buildroot config
 export RK_CFG_BUILDROOT=rockchip_rk3399pro
 # Recovery config
@@ -36,8 +36,6 @@ export RK_ROOTFS_IMG=rockdev/rootfs.${RK_ROOTFS_TYPE}
 export RK_OEM_FS_TYPE=ext2
 # Set userdata partition type, including ext2, fat
 export RK_USERDATA_FS_TYPE=ext2
-# Set flash type. support <emmc, nand, spi_nand, spi_nor>
-export RK_STORAGE_TYPE=emmc
 #OEM config
 export RK_OEM_DIR=oem_normal
 #userdata config

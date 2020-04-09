@@ -3,7 +3,7 @@
 # Target arch
 export RK_ARCH=arm
 # Uboot defconfig
-export RK_UBOOT_DEFCONFIG=kylin-rk3036
+export RK_UBOOT_DEFCONFIG=rk3036
 # Kernel defconfig
 export RK_KERNEL_DEFCONFIG=rockchip_linux_defconfig
 # Kernel dts
@@ -34,8 +34,6 @@ export RK_ROOTFS_IMG=rockdev/rootfs.${RK_ROOTFS_TYPE}
 export RK_OEM_FS_TYPE=ext2
 # Set userdata partition type, including ext2, fat
 export RK_USERDATA_FS_TYPE=ext2
-# Set flash type. support <emmc, nand, spi_nand, spi_nor>
-export RK_STORAGE_TYPE=emmc
 #OEM config
 export RK_OEM_DIR=oem_normal
 #userdata config

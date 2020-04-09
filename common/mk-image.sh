@@ -49,8 +49,9 @@ copy_to_ntfs()
 
 copy_to_image()
 {
-    echo "Copying $SRC_DIR into $TARGET (root permission required)"
+    ls $SRC_DIR/* &>/dev/null || return 0
 
+    echo "Copying $SRC_DIR into $TARGET (root permission required)"
     mkdir -p $TEMP || return -1
     sudo mount $TARGET $TEMP || return -1
 
@@ -71,13 +72,15 @@ check_host_tool()
 mkimage()
 {
     echo "Making $TARGET from $SRC_DIR with size(${SIZE}M)"
+    rm -rf $TARGET
     dd of=$TARGET bs=1M seek=$SIZE count=0 2>&1 || fatal "Failed to dd image!"
     case $FS_TYPE in
         ext[234])
-            if check_host_tool mke2fs; then
-                mke2fs $TARGET -d $SRC_DIR || return -1
+            if mke2fs -h 2>&1 | grep -wq "\-d"; then
+                mke2fs -t $FS_TYPE $TARGET -d $SRC_DIR || return -1
             else
-                mke2fs $TARGET || return -1
+                echo "Detected old mke2fs(doesn't support '-d' option)!"
+                mke2fs -t $FS_TYPE $TARGET || return -1
                 copy_to_image || return -1
             fi
             # Set max-mount-counts to 0, and disable the time-dependent checking.
@@ -103,17 +106,17 @@ mkimage()
 
 mkimage_auto_sized()
 {
-    tar cf $TEMP $SRC_DIR >/dev/null 2>&1
+    tar cf $TEMP $SRC_DIR &>/dev/null
     SIZE=$(du -m $TEMP|grep -o "^[0-9]*")
     rm -rf $TEMP
     echo "Making $TARGET from $SRC_DIR (auto sized)"
 
-    EXTRA_SIZE=4 #4M
     MAX_RETRY=10
     RETRY=0
 
     while true;do
-        SIZE=$[SIZE+EXTRA_SIZE]
+        EXTRA_SIZE=$(($SIZE / 50))
+        SIZE=$(($SIZE + ($EXTRA_SIZE > 4 ? $EXTRA_SIZE : 4)))
         mkimage && break
 
         RETRY=$[RETRY+1]

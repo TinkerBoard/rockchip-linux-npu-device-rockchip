@@ -1,5 +1,7 @@
 #!/bin/bash
 
+unset RK_CFG_TOOLCHAIN
+
 CMD=`realpath $0`
 COMMON_DIR=`dirname $CMD`
 TOP_DIR=$(realpath $COMMON_DIR/../../..)
@@ -13,14 +15,17 @@ function usage()
 	echo "Available options:"
 	echo "BoardConfig*.mk    -switch to specified board config"
 	echo "uboot              -build uboot"
+	echo "spl                -build spl"
 	echo "kernel             -build kernel"
 	echo "modules            -build kernel modules"
+	echo "toolchain          -build toolchain"
 	echo "rootfs             -build default rootfs, currently build buildroot as default"
 	echo "buildroot          -build buildroot rootfs"
 	echo "ramboot            -build ramboot image"
 	echo "multi-npu_boot     -build boot image for multi-npu board"
 	echo "yocto              -build yocto rootfs"
-	echo "debian             -build debian rootfs"
+	echo "debian             -build debian9 stretch rootfs"
+	echo "distro             -build debian10 buster rootfs"
 	echo "pcba               -build pcba"
 	echo "recovery           -build recovery"
 	echo "all                -build uboot, kernel, rootfs, recovery image"
@@ -50,6 +55,22 @@ function build_uboot(){
 	fi
 }
 
+function build_spl(){
+	echo "============Start build spl============"
+	echo "TARGET_SPL_CONFIG=$RK_SPL_DEFCONFIG"
+	echo "========================================="
+	if [ -f u-boot/*spl.bin ]; then
+		rm u-boot/*spl.bin
+	fi
+	cd u-boot && ./make.sh $RK_SPL_DEFCONFIG && ./make.sh spl-s && cd -
+	if [ $? -eq 0 ]; then
+		echo "====Build spl ok!===="
+	else
+		echo "====Build spl failed!===="
+		exit 1
+	fi
+}
+
 function build_kernel(){
 	echo "============Start build kernel============"
 	echo "TARGET_ARCH          =$RK_ARCH"
@@ -75,6 +96,21 @@ function build_modules(){
 		echo "====Build kernel ok!===="
 	else
 		echo "====Build kernel failed!===="
+		exit 1
+	fi
+}
+
+function build_toolchain(){
+	echo "==========Start build toolchain =========="
+	echo "TARGET_TOOLCHAIN_CONFIG=$RK_CFG_TOOLCHAIN"
+	echo "========================================="
+	[[ $RK_CFG_TOOLCHAIN ]] \
+		&& /usr/bin/time -f "you take %E to build toolchain" $COMMON_DIR/mk-toolchain.sh $BOARD_CONFIG \
+		|| echo "No toolchain step, skip!"
+	if [ $? -eq 0 ]; then
+		echo "====Build toolchain ok!===="
+	else
+		echo "====Build toolchain failed!===="
 		exit 1
 	fi
 }
@@ -135,8 +171,8 @@ function build_yocto(){
 	cd yocto
 	ln -sf $RK_YOCTO_MACHINE.conf build/conf/local.conf
 	source oe-init-build-env
-	bitbake core-image-minimal
 	cd ..
+	bitbake core-image-minimal -r conf/include/rksdk.conf
 
 	if [ $? -eq 0 ]; then
 		echo "====Build yocto ok!===="
@@ -147,11 +183,38 @@ function build_yocto(){
 }
 
 function build_debian(){
+	cd debian
+
+	if [ "$RK_ARCH" == "arm" ]; then
+		ARCH=armhf
+	fi
+	if [ "$RK_ARCH" == "arm64" ]; then
+		ARCH=arm64
+	fi
+
+	if [ ! -e linaro-stretch-alip-*.tar.gz ]; then
+		echo "\033[36m Run mk-base-debian.sh first \033[0m"
+		RELEASE=stretch TARGET=desktop ARCH=$ARCH ./mk-base-debian.sh
+	fi
+
+	VERSION=debug ARCH=$ARCH ./mk-rootfs-stretch.sh
+
+	./mk-image.sh
+	cd ..
+	if [ $? -eq 0 ]; then
+		echo "====Build Debian9 ok!===="
+	else
+		echo "====Build Debian9 failed!===="
+		exit 1
+	fi
+}
+
+function build_distro(){
 	echo "===========Start build debian==========="
 	echo "TARGET_ARCH=$RK_ARCH"
 	echo "RK_DISTRO_DEFCONFIG=$RK_DISTRO_DEFCONFIG"
 	echo "========================================"
-	/usr/bin/time -f "you take %E to build debian" $TOP_DIR/distro/make.sh $RK_DISTRO_DEFCONFIG
+	cd distro && make $RK_DISTRO_DEFCONFIG && /usr/bin/time -f "you take %E to build debian" $TOP_DIR/distro/make.sh && cd -
 	if [ $? -eq 0 ]; then
 		echo "====Build debian ok!===="
 	else
@@ -170,7 +233,11 @@ function build_rootfs(){
 			;;
 		debian)
 			build_debian
-			ROOTFS_IMG=rootfs/linaro-rootfs.img
+			ROOTFS_IMG=debian/linaro-rootfs.img
+			;;
+		distro)
+			build_distro
+			ROOTFS_IMG=yocto/output/images/rootfs.$RK_ROOTFS_TYPE
 			;;
 		*)
 			build_buildroot
@@ -219,25 +286,39 @@ function build_all(){
 	echo "TARGET_ARCH=$RK_ARCH"
 	echo "TARGET_PLATFORM=$RK_TARGET_PRODUCT"
 	echo "TARGET_UBOOT_CONFIG=$RK_UBOOT_DEFCONFIG"
+	echo "TARGET_SPL_CONFIG=$RK_SPL_DEFCONFIG"
 	echo "TARGET_KERNEL_CONFIG=$RK_KERNEL_DEFCONFIG"
 	echo "TARGET_KERNEL_DTS=$RK_KERNEL_DTS"
+	echo "TARGET_TOOLCHAIN_CONFIG=$RK_CFG_TOOLCHAIN"
 	echo "TARGET_BUILDROOT_CONFIG=$RK_CFG_BUILDROOT"
 	echo "TARGET_RECOVERY_CONFIG=$RK_CFG_RECOVERY"
 	echo "TARGET_PCBA_CONFIG=$RK_CFG_PCBA"
 	echo "TARGET_RAMBOOT_CONFIG=$RK_CFG_RAMBOOT"
 	echo "============================================"
-	build_uboot
+
+	#note: if build spl, it will delete loader.bin in uboot directory,
+	# so can not build uboot and spl at the same time.
+	if [ -z $RK_SPL_DEFCONFIG ]; then
+		build_uboot
+	else
+		build_spl
+	fi
+
 	build_kernel
+	build_toolchain && \
 	build_rootfs ${RK_ROOTFS_SYSTEM:-buildroot}
 	build_recovery
 	build_ramboot
 }
 
-function clean_all(){
+function build_cleanall(){
 	echo "clean uboot, kernel, rootfs, recovery"
 	cd $TOP_DIR/u-boot/ && make distclean && cd -
 	cd $TOP_DIR/kernel && make distclean && cd -
-	rm -rf buildroot/output
+	rm -rf $TOP_DIR/buildroot/output
+	rm -rf $TOP_DIR/yocto/build
+	rm -rf $TOP_DIR/distro/output
+	rm -rf $TOP_DIR/debian/binary
 }
 
 function build_firmware(){
@@ -345,7 +426,10 @@ for option in ${OPTIONS:-allsave}; do
 	echo "processing option: $option"
 	case $option in
 		BoardConfig*.mk)
-			CONF=$TOP_DIR/device/rockchip/$RK_TARGET_PRODUCT/$option
+			option=$TOP_DIR/device/rockchip/$RK_TARGET_PRODUCT/$option
+			;&
+		*.mk)
+			CONF=$(realpath $option)
 			echo "switching to board: $CONF"
 			if [ ! -f $CONF ]; then
 				echo "not exist!"
@@ -354,7 +438,7 @@ for option in ${OPTIONS:-allsave}; do
 
 			ln -sf $CONF $BOARD_CONFIG
 			;;
-		buildroot|debian|yocto)
+		buildroot|debian|distro|yocto)
 			build_rootfs $option
 			;;
 		recovery)

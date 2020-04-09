@@ -16,9 +16,11 @@ export RK_BOOT_IMG=boot.img
 export RK_KERNEL_IMG=kernel/arch/arm64/boot/Image
 export RK_KERNEL_ZIMG=kernel/arch/arm64/boot/Image.lz4
 # parameter for GPT table
-export RK_PARAMETER=parameter-buildroot.txt
+export RK_PARAMETER=parameter.txt
 # Buildroot config
 export RK_CFG_BUILDROOT=rockchip_px30_64
+# Debian 10 config
+export RK_DISTRO_DEFCONFIG=px30_defconfig
 # Recovery config
 export RK_CFG_RECOVERY=rockchip_px30_recovery
 # ramboot config
@@ -31,14 +33,14 @@ export RK_JOBS=12
 export RK_TARGET_PRODUCT=px30
 # Set rootfs type, including ext2 ext4 squashfs
 export RK_ROOTFS_TYPE=ext4
+# yocto machine
+export RK_YOCTO_MACHINE=rockchip-px30-evb
 # rootfs image path
 export RK_ROOTFS_IMG=rockdev/rootfs.${RK_ROOTFS_TYPE}
 # Set oem partition type, including ext2 squashfs
 export RK_OEM_FS_TYPE=ext2
 # Set userdata partition type, including ext2, fat
 export RK_USERDATA_FS_TYPE=ext2
-# Set flash type. support <emmc, nand, spi_nand, spi_nor>
-export RK_STORAGE_TYPE=emmc
 #OEM config
 export RK_OEM_DIR=oem_normal
 #userdata config

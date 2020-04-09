@@ -16,7 +16,7 @@ export RK_BOOT_IMG=zboot.img
 export RK_KERNEL_IMG=kernel/arch/arm64/boot/Image
 export RK_KERNEL_ZIMG=kernel/arch/arm64/boot/Image.lz4
 # parameter for GPT table
-export RK_PARAMETER=parameter-buildroot.txt
+export RK_PARAMETER=parameter.txt
 # Buildroot config
 export RK_CFG_BUILDROOT=rockchip_rk3326_32
 # Recovery config
@@ -30,15 +30,13 @@ export RK_JOBS=12
 # target chip
 export RK_TARGET_PRODUCT=rk3326
 # Set rootfs type, including ext2 ext4 squashfs
-export RK_ROOTFS_TYPE=suqashfs
+export RK_ROOTFS_TYPE=ext4
 # rootfs image path
 export RK_ROOTFS_IMG=rockdev/rootfs.${RK_ROOTFS_TYPE}
 # Set oem partition type, including ext2 squashfs
 export RK_OEM_FS_TYPE=ext2
 # Set userdata partition type, including ext2, fat
 export RK_USERDATA_FS_TYPE=ext2
-# Set flash type. support <emmc, nand, spi_nand, spi_nor>
-export RK_STORAGE_TYPE=emmc
 #OEM config
 export RK_OEM_DIR=oem_normal
 #userdata config

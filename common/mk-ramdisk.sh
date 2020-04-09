@@ -48,11 +48,14 @@ TARGET_IMAGE=$TOP_DIR/buildroot/output/$RAMDISK_CFG/images/$RAMDISK_IMG
 
 # build ramdisk
 echo "====Start build $RAMDISK_CFG===="
-make
+$TOP_DIR/buildroot/utils/brmake
 if [ $? -eq 0 ]; then
+    echo "log saved on $TOP_DIR/br.log"
     echo "====Build $RAMDISK_CFG ok!===="
 else
+    echo "log saved on $TOP_DIR/br.log"
     echo "====Build $RAMDISK_CFG failed!===="
+    tail -n 100 $TOP_DIR/br.log
     exit 1
 fi
 
