@@ -61,7 +61,7 @@ export RK_USERDATA_FILESYSTEM_SIZE=6M
 ########################################
 # Set root data config
 export RK_ROOT_FILESYSTEM_TYPE=jffs2
-export RK_ROOT_FILESYSTEM_SIZE=6M
+export RK_ROOT_FILESYSTEM_SIZE=8M
 
 ########################################
 #            Firmware Config           #
@@ -91,4 +91,4 @@ export RK_FACE_FOV_SCALE_FACTOR_Y=1
 # Set UVC source
 export RK_UVC_USE_SL_MODULE=n
 # Set first start application
-export RK_FIRST_START_APP="cvr system_manager device_manager io"
+export RK_FIRST_START_APP="cvr system_manager device_manager io sfdisk parted rkffplay"
