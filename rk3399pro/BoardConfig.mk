@@ -1,1 +1,1 @@
-BoardConfig_rk3399pro_evb_v14-combine.mk
+BoardConfig-rk3399pro_npu-tinker_edge_r.mk
